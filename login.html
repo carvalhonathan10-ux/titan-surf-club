@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connexion — TITAN Surf Club</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <form class="card login-card" id="loginForm">
+      <div style="text-align:center; margin-bottom:24px;">
+        <div class="login-logo">T</div>
+        <h1 style="font-size:1.2rem;">TITAN Surf Club</h1>
+        <p class="subtitle">Espace bureau — gestion des adhérents</p>
+      </div>
+      <div id="errorBox"></div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="email" required autofocus>
+      </div>
+      <div class="field">
+        <label>Mot de passe</label>
+        <input type="password" id="password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;" id="submitBtn">Se connecter</button>
+    </form>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    (async function () {
+      const { data } = await sb.auth.getSession();
+      if (data.session) window.location.href = 'index.html';
+    })();
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('submitBtn');
+      const errorBox = document.getElementById('errorBox');
+      errorBox.innerHTML = '';
+      btn.disabled = true;
+      btn.textContent = 'Connexion...';
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      btn.disabled = false;
+      btn.textContent = 'Se connecter';
+      if (error) {
+        errorBox.innerHTML = '<div class="error-box">Identifiants incorrects. Vérifiez l\'email et le mot de passe du compte bureau.</div>';
+        return;
+      }
+      window.location.href = 'index.html';
+    });
+  </script>
+</body>
+</html>
