@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fiche adhérent — TITAN Surf Club</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav id="navbar"></nav>
+  <div class="page" style="max-width:920px;">
+    <a href="index.html" class="btn btn-ghost" style="padding-left:0; margin-bottom:8px;">← Retour aux adhérents</a>
+
+    <div class="page-header">
+      <div>
+        <h1 id="adherentName">Chargement...</h1>
+        <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+          <span id="soldeBadge"></span>
+          <span class="text-muted" style="font-size:.85rem;" id="realiseesLabel"></span>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="saveBtn">💾 Enregistrer</button>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 style="font-size:.95rem; margin-bottom:14px;">Identité</h3>
+        <div class="grid-2">
+          <div class="field"><label>Nom</label><input id="f_nom"></div>
+          <div class="field"><label>Prénom</label><input id="f_prenom"></div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>Sexe</label>
+            <select id="f_sexe"><option value="">—</option><option>Homme</option><option>Femme</option><option>Autre</option></select>
+          </div>
+          <div class="field"><label>Date de naissance</label><input type="date" id="f_date_naissance"></div>
+        </div>
+        <div class="field"><label>Pathologie / situation</label><textarea rows="2" id="f_pathologie"></textarea></div>
+        <div class="checkline"><input type="checkbox" id="f_licence"> <label for="f_licence">Licence FFS (licence fédérale de surf)</label></div>
+        <div class="checkline"><input type="checkbox" id="f_droit_image"> <label for="f_droit_image">Droit à l'image</label></div>
+        <div class="checkline"><input type="checkbox" id="f_actif"> <label for="f_actif">Adhérent actif</label></div>
+      </div>
+
+      <div class="card">
+        <h3 style="font-size:.95rem; margin-bottom:14px;">Contact</h3>
+        <div class="field"><label>Email</label><input type="email" id="f_email"></div>
+        <div class="field"><label>Téléphone</label><input id="f_telephone"></div>
+        <div class="field"><label>Contact (parent / aidant)</label><input id="f_contact_nom"></div>
+        <div class="field"><label>Adresse</label><textarea rows="2" id="f_adresse"></textarea></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:.95rem; margin-bottom:14px;">Notes internes</h3>
+      <textarea rows="2" id="f_notes" style="padding:9px 11px; border:1px solid var(--border); border-radius:8px; width:100%;"></textarea>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h3 style="font-size:.95rem;">Achats — carnets, séances, licence annuelle</h3>
+      </div>
+      <p class="text-muted" style="font-size:.8rem; margin-top:-8px; margin-bottom:14px;">
+        Un adhérent peut racheter un nouveau carnet/séance/licence annuelle à tout moment, même si son solde de séances est à 0 ou négatif — cela n'empêche jamais de surfer.
+      </p>
+      <div class="row-inline" style="margin-bottom:16px;">
+        <div class="field" style="margin-bottom:0;">
+          <label>Type</label>
+          <select id="newAchatType">
+            <option value="carnet_10">Carnet 10 séances — 120 €</option>
+            <option value="seance_unique">Séance unique — 20 €</option>
+            <option value="licence">Licence annuelle — 280 €</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="addAchatBtn">+ Ajouter un achat</button>
+      </div>
+      <div id="achatsList"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 style="font-size:.95rem; margin-bottom:14px;">Historique des séances</h3>
+        <div id="historiqueList" style="max-height:280px; overflow-y:auto;"></div>
+      </div>
+      <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+        <div>
+          <h3 style="font-size:.95rem; margin-bottom:14px;">Actions</h3>
+          <p class="text-muted" style="font-size:.85rem;">Pour inscrire cet adhérent à une séance, rendez-vous dans le calendrier.</p>
+          <a href="calendrier.html" class="btn btn-secondary" style="margin-top:8px;">📅 Aller au calendrier</a>
+        </div>
+        <button class="btn btn-danger" id="deleteBtn" style="margin-top:20px;">🗑 Supprimer cet adhérent</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    let currentAdherent = null;
+
+    async function load() {
+      const [{ data: a }, { data: s }, { data: res }, { data: achats }] = await Promise.all([
+        sb.from('adherents').select('*').eq('id', id).single(),
+        sb.from('v_adherents_stats').select('*').eq('adherent_id', id).maybeSingle(),
+        sb.from('reservations').select('id, present, sessions_surf(date, heure)').eq('adherent_id', id),
+        sb.from('achats').select('*').eq('adherent_id', id).order('created_at', { ascending: false }),
+      ]);
+      currentAdherent = a;
+      fillForm(a);
+      const badge = statutSeances(s?.seances_restantes);
+      document.getElementById('adherentName').textContent = `${a.prenom} ${a.nom}`;
+      document.getElementById('soldeBadge').innerHTML = `<span class="badge ${badge.cls}">${badge.label}</span>`;
+      document.getElementById('realiseesLabel').textContent = `${s?.seances_realisees ?? 0} séance(s) réalisée(s) au total`;
+
+      const historique = (res || []).filter(r => r.sessions_surf).sort((x, y) => x.sessions_surf.date < y.sessions_surf.date ? 1 : -1);
+      const hList = document.getElementById('historiqueList');
+      hList.innerHTML = historique.length === 0
+        ? '<p class="empty-msg">Aucune réservation enregistrée.</p>'
+        : historique.map(h => `
+          <div class="list-row">
+            <span>${fmtDateShort(h.sessions_surf.date)} · ${(h.sessions_surf.heure || '').slice(0,5)}</span>
+            <span class="badge ${h.present ? 'badge-vert' : 'badge-neutral'}">${h.present ? 'Présent' : 'Absent'}</span>
+          </div>`).join('');
+
+      renderAchats(achats || []);
+    }
+
+    function renderAchats(achats) {
+      const list = document.getElementById('achatsList');
+      if (achats.length === 0) {
+        list.innerHTML = '<p class="empty-msg">Aucun achat enregistré.</p>';
+        return;
+      }
+      list.innerHTML = achats.map(a => `
+        <div class="list-row">
+          <div>
+            <div style="font-weight:600;">${TYPE_LABEL[a.type]} · ${a.montant} €</div>
+            <div class="text-muted" style="font-size:.8rem;">${a.mode_paiement || 'Mode non précisé'} ${a.date_paiement ? '· ' + fmtDateShort(a.date_paiement) : ''}</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select data-id="${a.id}" class="statutSelect ${a.statut === 'Payé' ? 'badge badge-vert' : 'badge badge-ambre'}" style="border:none;">
+              <option value="Payé" ${a.statut === 'Payé' ? 'selected' : ''}>Payé</option>
+              <option value="En attente" ${a.statut === 'En attente' ? 'selected' : ''}>En attente</option>
+            </select>
+            <button class="btn btn-ghost btn-sm delAchatBtn" data-id="${a.id}">🗑</button>
+          </div>
+        </div>`).join('');
+
+      list.querySelectorAll('.statutSelect').forEach(sel => {
+        sel.addEventListener('change', async (e) => {
+          await sb.from('achats').update({ statut: e.target.value }).eq('id', e.target.dataset.id);
+          load();
+        });
+      });
+      list.querySelectorAll('.delAchatBtn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Supprimer cet achat ?')) return;
+          await sb.from('achats').delete().eq('id', btn.dataset.id);
+          load();
+        });
+      });
+    }
+
+    function fillForm(a) {
+      document.getElementById('f_nom').value = a.nom || '';
+      document.getElementById('f_prenom').value = a.prenom || '';
+      document.getElementById('f_sexe').value = a.sexe || '';
+      document.getElementById('f_date_naissance').value = a.date_naissance || '';
+      document.getElementById('f_pathologie').value = a.pathologie || '';
+      document.getElementById('f_licence').checked = !!a.licence;
+      document.getElementById('f_droit_image').checked = !!a.droit_image;
+      document.getElementById('f_actif').checked = !!a.actif;
+      document.getElementById('f_email').value = a.email || '';
+      document.getElementById('f_telephone').value = a.telephone || '';
+      document.getElementById('f_contact_nom').value = a.contact_nom || '';
+      document.getElementById('f_adresse').value = a.adresse || '';
+      document.getElementById('f_notes').value = a.notes || '';
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      const payload = {
+        nom: document.getElementById('f_nom').value,
+        prenom: document.getElementById('f_prenom').value,
+        sexe: document.getElementById('f_sexe').value || null,
+        date_naissance: document.getElementById('f_date_naissance').value || null,
+        pathologie: document.getElementById('f_pathologie').value,
+        licence: document.getElementById('f_licence').checked,
+        droit_image: document.getElementById('f_droit_image').checked,
+        actif: document.getElementById('f_actif').checked,
+        email: document.getElementById('f_email').value,
+        telephone: document.getElementById('f_telephone').value,
+        contact_nom: document.getElementById('f_contact_nom').value,
+        adresse: document.getElementById('f_adresse').value,
+        notes: document.getElementById('f_notes').value,
+      };
+      const btn = document.getElementById('saveBtn');
+      btn.disabled = true; btn.textContent = 'Enregistrement...';
+      const { error } = await sb.from('adherents').update(payload).eq('id', id);
+      btn.disabled = false; btn.textContent = '💾 Enregistrer';
+      if (error) alert("Erreur : " + error.message);
+      else load();
+    });
+
+    document.getElementById('addAchatBtn').addEventListener('click', async () => {
+      const type = document.getElementById('newAchatType').value;
+      const { error } = await sb.from('achats').insert({
+        adherent_id: id, type,
+        montant: TYPE_DEFAULT_MONTANT[type],
+        nb_seances: TYPE_DEFAULT_SEANCES[type],
+        statut: 'En attente',
+      });
+      if (!error) load();
+    });
+
+    document.getElementById('deleteBtn').addEventListener('click', async () => {
+      if (!confirm(`Supprimer définitivement ${currentAdherent.prenom} ${currentAdherent.nom} ? Cette action est irréversible.`)) return;
+      await sb.from('adherents').delete().eq('id', id);
+      window.location.href = 'index.html';
+    });
+
+    (async function init() {
+      const session = await requireAuth();
+      if (!session) return;
+      initNav('accueil');
+      await load();
+    })();
+  </script>
+</body>
+</html>
