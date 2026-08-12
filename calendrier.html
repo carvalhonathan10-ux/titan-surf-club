@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendrier — TITAN Surf Club</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav id="navbar"></nav>
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <h1>Réservations</h1>
+        <p class="subtitle">Mercredis & samedis, 9h–15h, Saint-Leu</p>
+      </div>
+      <button class="btn btn-primary" id="addSessionBtn">+ Nouvelle séance</button>
+    </div>
+
+    <div class="cal-controls">
+      <button class="btn btn-secondary" id="prevBtn">←</button>
+      <h3 class="cal-month-label" id="monthLabel"></h3>
+      <button class="btn btn-secondary" id="nextBtn">→</button>
+      <button class="btn btn-ghost" id="todayBtn">Aujourd'hui</button>
+    </div>
+
+    <div class="card">
+      <div class="cal-grid" style="margin-bottom:6px;">
+        <div class="cal-daylabel">Lun</div><div class="cal-daylabel">Mar</div><div class="cal-daylabel">Mer</div>
+        <div class="cal-daylabel">Jeu</div><div class="cal-daylabel">Ven</div><div class="cal-daylabel">Sam</div><div class="cal-daylabel">Dim</div>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script>
+    let cursor = new Date();
+    cursor.setDate(1);
+
+    function fmt(d) {
+      return d.toISOString().slice(0, 10);
+    }
+    function startOfWeekMon(d) {
+      const day = (d.getDay() + 6) % 7;
+      const r = new Date(d); r.setDate(d.getDate() - day); return r;
+    }
+    function addDays(d, n) { const r = new Date(d); r.setDate(d.getDate() + n); return r; }
+    function addMonths(d, n) { const r = new Date(d); r.setMonth(d.getMonth() + n); return r; }
+    function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+
+    async function loadAndRender() {
+      const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+      const monthEnd = endOfMonth(cursor);
+      const from = fmt(startOfWeekMon(monthStart));
+      const to = fmt(addDays(startOfWeekMon(endOfMonth(monthEnd)), 6));
+
+      const { data: sessions } = await sb.from('sessions_surf')
+        .select('id, date, heure, lieu, reservations(id)')
+        .gte('date', from).lte('date', to)
+        .order('heure');
+
+      const byDay = {};
+      (sessions || []).forEach(s => { (byDay[s.date] = byDay[s.date] || []).push(s); });
+
+      document.getElementById('monthLabel').textContent = cursor.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+      const start = startOfWeekMon(monthStart);
+      const end = addDays(startOfWeekMon(endOfMonth(monthEnd)), 6);
+      const todayStr = fmt(new Date());
+      let html = '';
+      let d = new Date(start);
+      while (d <= end) {
+        const key = fmt(d);
+        const inMonth = d.getMonth() === cursor.getMonth();
+        const isToday = key === todayStr;
+        const daySessions = byDay[key] || [];
+        html += `<div class="cal-cell ${inMonth ? '' : 'out'} ${isToday ? 'today' : ''}">
+          <div class="cal-daynum">${d.getDate()}</div>
+          ${daySessions.map(s => `<div class="cal-session" onclick="location.href='session.html?id=${s.id}'">${(s.heure||'').slice(0,5)} · ${s.reservations?.length || 0} insc.</div>`).join('')}
+        </div>`;
+        d = addDays(d, 1);
+      }
+      document.getElementById('calGrid').innerHTML = html;
+    }
+
+    document.getElementById('prevBtn').addEventListener('click', () => { cursor = addMonths(cursor, -1); loadAndRender(); });
+    document.getElementById('nextBtn').addEventListener('click', () => { cursor = addMonths(cursor, 1); loadAndRender(); });
+    document.getElementById('todayBtn').addEventListener('click', () => { cursor = new Date(); cursor.setDate(1); loadAndRender(); });
+
+    document.getElementById('addSessionBtn').addEventListener('click', async () => {
+      const today = fmt(new Date());
+      const { data, error } = await sb.from('sessions_surf').insert({ date: today, heure: '09:30', lieu: 'Saint-Leu' }).select().single();
+      if (!error) window.location.href = `session.html?id=${data.id}`;
+    });
+
+    (async function init() {
+      const session = await requireAuth();
+      if (!session) return;
+      initNav('calendrier');
+      await loadAndRender();
+    })();
+  </script>
+</body>
+</html>
