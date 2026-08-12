@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bénévoles — TITAN Surf Club</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav id="navbar"></nav>
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <h1>Bénévoles</h1>
+        <p class="subtitle" id="countLabel">Chargement...</p>
+      </div>
+      <button class="btn btn-primary" id="addBtn">+ Ajouter un bénévole</button>
+    </div>
+
+    <div class="card scroll-x" style="padding:0;">
+      <table>
+        <thead>
+          <tr><th>Prénom</th><th>Nom</th><th>Téléphone</th><th>Licence</th><th>Droit à l'image</th><th>Actif</th><th></th></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="text-muted" style="font-size:.8rem; margin-top:10px;">Les modifications sont enregistrées automatiquement quand vous quittez un champ.</p>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script>
+    async function load() {
+      const { data } = await sb.from('benevoles').select('*').order('prenom');
+      const list = data || [];
+      document.getElementById('countLabel').textContent = `${list.length} bénévole(s)`;
+      document.getElementById('tbody').innerHTML = list.map(b => `
+        <tr>
+          <td><input value="${b.prenom || ''}" data-id="${b.id}" data-field="prenom" class="editField" style="border:none; background:transparent; width:100%;"></td>
+          <td><input value="${b.nom || ''}" data-id="${b.id}" data-field="nom" class="editField" style="border:none; background:transparent; width:100%;"></td>
+          <td><input value="${b.telephone || ''}" data-id="${b.id}" data-field="telephone" class="editField" style="border:none;
