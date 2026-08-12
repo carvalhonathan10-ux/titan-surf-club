@@ -1,24 +1,120 @@
 <!doctype html>
 <html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TITAN Surf Club — Gestion</title>
-    <!-- Redirection SPA pour GitHub Pages (gère les rechargements sur /adherents, /calendrier, etc.) -->
-    <script type="text/javascript">
-      (function (l) {
-        if (l.search[1] === '/') {
-          var decoded = l.search.slice(1).split('&').map(function (s) {
-            return s.replace(/~and~/g, '&')
-          }).join('?')
-          window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash)
-        }
-      }(window.location))
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adhérents — TITAN Surf Club</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav id="navbar"></nav>
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <h1>Adhérents</h1>
+        <p class="subtitle" id="countLabel">Chargement...</p>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <a href="calendrier.html" class="btn btn-primary">📅 Réservation</a>
+        <button class="btn btn-secondary" id="addBtn">+ Ajouter un adhérent</button>
+      </div>
+    </div>
+
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="search-box">
+      <span>🔍</span>
+      <input type="text" id="search" placeholder="Rechercher par nom, prénom, email...">
+    </div>
+
+    <div class="card scroll-x" style="padding:0;">
+      <table>
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Contact</th>
+            <th>Licence FFS</th>
+            <th>Séances restantes</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="5" class="empty-msg">Chargement...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script>
+    let adherents = [];
+    let statsMap = {};
+
+    async function load() {
+      const [{ data: a }, { data: s }] = await Promise.all([
+        sb.from('adherents').select('*').order('nom'),
+        sb.from('v_adherents_stats').select('*'),
+      ]);
+      adherents = a || [];
+      statsMap = Object.fromEntries((s || []).map(x => [x.adherent_id, x]));
+      renderStats();
+      render(adherents);
+    }
+
+    function renderStats() {
+      const actifs = adherents.filter(a => a.actif);
+      const restantesTotal = actifs.reduce((sum, a) => sum + (statsMap[a.id]?.seances_restantes ?? 0), 0);
+      const aRelancer = actifs.filter(a => (statsMap[a.id]?.seances_restantes ?? 0) <= 0).length;
+      document.getElementById('statGrid').innerHTML = `
+        <div class="stat-card"><div class="stat-value">${actifs.length}</div><div class="stat-label">Adhérents actifs</div></div>
+        <div class="stat-card"><div class="stat-value">${restantesTotal}</div><div class="stat-label">Séances restantes (total)</div></div>
+        <div class="stat-card"><div class="stat-value">${aRelancer}</div><div class="stat-label">Solde à 0 ou négatif</div></div>
+      `;
+      document.getElementById('countLabel').textContent = `${adherents.length} adhérent(s) enregistré(s)`;
+    }
+
+    function render(list) {
+      const tbody = document.getElementById('tbody');
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-msg">Aucun adhérent trouvé.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(a => {
+        const st = statsMap[a.id];
+        const badge = statutSeances(st?.seances_restantes);
+        return `
+          <tr class="clickable" onclick="location.href='adherent.html?id=${a.id}'">
+            <td style="font-weight:700; color:var(--marine);">${a.nom} ${a.prenom}</td>
+            <td>
+              <div>${a.email || '—'}</div>
+              <div class="text-muted" style="font-size:.82rem;">${a.telephone || ''}</div>
+            </td>
+            <td>${a.licence ? '✅' : '—'}</td>
+            <td><span class="badge ${badge.cls}">${badge.label}</span></td>
+            <td>${a.actif ? '<span class="badge badge-vert">Actif</span>' : '<span class="badge badge-neutral">Inactif</span>'}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    document.getElementById('search').addEventListener('input', (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      if (!q) return render(adherents);
+      render(adherents.filter(a => `${a.nom} ${a.prenom} ${a.email || ''}`.toLowerCase().includes(q)));
+    });
+
+    document.getElementById('addBtn').addEventListener('click', async () => {
+      const { data, error } = await sb.from('adherents').insert({ nom: 'Nouvel', prenom: 'Adhérent' }).select().single();
+      if (!error) window.location.href = `adherent.html?id=${data.id}`;
+    });
+
+    (async function init() {
+      const session = await requireAuth();
+      if (!session) return;
+      initNav('accueil');
+      await load();
+    })();
+  </script>
+</body>
 </html>
