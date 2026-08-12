@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Séance — TITAN Surf Club</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav id="navbar"></nav>
+  <div class="page" style="max-width:760px;">
+    <a href="calendrier.html" class="btn btn-ghost" style="padding-left:0; margin-bottom:8px;">← Retour au calendrier</a>
+
+    <div class="page-header">
+      <div>
+        <h1 id="sessionTitle">Chargement...</h1>
+        <p class="subtitle" id="sessionSub"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid-2">
+        <div class="field"><label>Date</label><input type="date" id="f_date"></div>
+        <div class="field"><label>Heure</label><input type="time" id="f_heure"></div>
+        <div class="field"><label>Lieu</label><input id="f_lieu"></div>
+        <div class="field"><label>Encadrant(s)</label><input id="f_encadrants" placeholder="Noms des bénévoles"></div>
+      </div>
+      <button class="btn btn-secondary" id="saveSessionBtn">💾 Enregistrer les infos</button>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:.95rem; margin-bottom:14px;">Participants</h3>
+      <div class="row-inline" style="margin-bottom:16px;">
+        <select id="addSelect" style="flex:1; min-width:220px; padding:9px 11px; border:1px solid var(--border); border-radius:8px;">
+          <option value="">Ajouter un adhérent...</option>
+        </select>
+        <button class="btn btn-primary" id="addPartBtn">+ Inscrire</button>
+      </div>
+      <div id="partList"></div>
+      <p class="text-muted" style="font-size:.78rem; margin-top:12px;">
+        Seules les présences cochées décomptent une séance. Une absence n'est jamais pénalisée, et un solde négatif n'empêche jamais de surfer.
+      </p>
+    </div>
+
+    <button class="btn btn-danger" id="deleteSessionBtn" style="margin-top:20px;">🗑 Supprimer cette séance</button>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    let reservations = [];
+    let allAdherents = [];
+
+    async function load() {
+      const [{ data: s }, { data: res }, { data: adh }] = await Promise.all([
+        sb.from('sessions_surf').select('*').eq('id', id).single(),
+        sb.from('reservations').select('id, present, adherent_id, adherents(nom, prenom)').eq('session_id', id),
+        sb.from('adherents').select('id, nom, prenom').eq('actif', true).order('nom'),
+      ]);
+      document.getElementById('f_date').value = s.date;
+      document.getElementById('f_heure').value = s.heure;
+      document.getElementById('f_lieu').value = s.lieu || '';
+      document.getElementById('f_encadrants').value = s.encadrants || '';
+      document.getElementById('sessionTitle').textContent = fmtDate(s.date);
+
+      reservations = (res || []).sort((a, b) => (a.adherents?.nom || '').localeCompare(b.adherents?.nom || ''));
+      allAdherents = adh || [];
+      document.getElementById('sessionSub').textContent = `${reservations.length} inscrit(s) · ${reservations.filter(r => r.present).length} présent(s)`;
+
+      renderParticipants();
+      renderSelect();
+    }
+
+    function renderParticipants() {
+      const box = document.getElementById('partList');
+      if (reservations.length === 0) {
+        box.innerHTML = '<p class="empty-msg">Aucun inscrit pour cette séance.</p>';
+        return;
+      }
+      box.innerHTML = reservations.map(r => `
+        <div class="list-row">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+            <input type="checkbox" class="presentCheck" data-id="${r.id}" ${r.present ? 'checked' : ''}>
+            ${r.adherents?.nom} ${r.adherents?.prenom}
+            <span class="badge ${r.present ? 'badge-vert' : 'badge-neutral'}">${r.present ? 'Présent' : 'À pointer'}</span>
+          </label>
+          <button class="btn btn-ghost btn-sm removeBtn" data-id="${r.id}">🗑</button>
+        </div>`).join('');
+
+      box.querySelectorAll('.presentCheck').forEach(cb => {
+        cb.addEventListener('change', async (e) => {
+          await sb.from('reservations').update({ present: e.target.checked }).eq('id', e.target.dataset.id);
+          load();
+        });
+      });
+      box.querySelectorAll('.removeBtn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await
