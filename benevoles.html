@@ -40,4 +40,43 @@
         <tr>
           <td><input value="${b.prenom || ''}" data-id="${b.id}" data-field="prenom" class="editField" style="border:none; background:transparent; width:100%;"></td>
           <td><input value="${b.nom || ''}" data-id="${b.id}" data-field="nom" class="editField" style="border:none; background:transparent; width:100%;"></td>
-          <td><input value="${b.telephone || ''}" data-id="${b.id}" data-field="telephone" class="editField" style="border:none;
+          <td><input value="${b.telephone || ''}" data-id="${b.id}" data-field="telephone" class="editField" style="border:none; background:transparent; width:100%;"></td>
+          <td><input type="checkbox" ${b.licence ? 'checked' : ''} data-id="${b.id}" data-field="licence" class="editCheck"></td>
+          <td><input type="checkbox" ${b.droit_image ? 'checked' : ''} data-id="${b.id}" data-field="droit_image" class="editCheck"></td>
+          <td><input type="checkbox" ${b.actif ? 'checked' : ''} data-id="${b.id}" data-field="actif" class="editCheck"></td>
+          <td><button class="btn btn-ghost btn-sm delBtn" data-id="${b.id}">🗑</button></td>
+        </tr>`).join('');
+
+      document.querySelectorAll('.editField').forEach(inp => {
+        inp.addEventListener('blur', async (e) => {
+          await sb.from('benevoles').update({ [e.target.dataset.field]: e.target.value }).eq('id', e.target.dataset.id);
+        });
+      });
+      document.querySelectorAll('.editCheck').forEach(inp => {
+        inp.addEventListener('change', async (e) => {
+          await sb.from('benevoles').update({ [e.target.dataset.field]: e.target.checked }).eq('id', e.target.dataset.id);
+        });
+      });
+      document.querySelectorAll('.delBtn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Supprimer ce bénévole ?')) return;
+          await sb.from('benevoles').delete().eq('id', btn.dataset.id);
+          load();
+        });
+      });
+    }
+
+    document.getElementById('addBtn').addEventListener('click', async () => {
+      await sb.from('benevoles').insert({ prenom: 'Nouveau bénévole' });
+      load();
+    });
+
+    (async function init() {
+      const session = await requireAuth();
+      if (!session) return;
+      initNav('benevoles');
+      await load();
+    })();
+  </script>
+</body>
+</html>
