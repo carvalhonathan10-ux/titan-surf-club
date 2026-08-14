@@ -98,4 +98,50 @@
       });
       box.querySelectorAll('.removeBtn').forEach(btn => {
         btn.addEventListener('click', async () => {
-          await
+          await sb.from('reservations').delete().eq('id', btn.dataset.id);
+          load();
+        });
+      });
+    }
+
+    function renderSelect() {
+      const sel = document.getElementById('addSelect');
+      const already = new Set(reservations.map(r => r.adherent_id));
+      const available = allAdherents.filter(a => !already.has(a.id));
+      sel.innerHTML = '<option value="">Ajouter un adhérent...</option>' +
+        available.map(a => `<option value="${a.id}">${a.nom} ${a.prenom}</option>`).join('');
+    }
+
+    document.getElementById('addPartBtn').addEventListener('click', async () => {
+      const val = document.getElementById('addSelect').value;
+      if (!val) return;
+      const { error } = await sb.from('reservations').insert({ session_id: id, adherent_id: val });
+      if (!error) load();
+    });
+
+    document.getElementById('saveSessionBtn').addEventListener('click', async () => {
+      const payload = {
+        date: document.getElementById('f_date').value,
+        heure: document.getElementById('f_heure').value,
+        lieu: document.getElementById('f_lieu').value,
+        encadrants: document.getElementById('f_encadrants').value,
+      };
+      const { error } = await sb.from('sessions_surf').update(payload).eq('id', id);
+      if (!error) load();
+    });
+
+    document.getElementById('deleteSessionBtn').addEventListener('click', async () => {
+      if (!confirm('Supprimer cette séance et toutes ses réservations ?')) return;
+      await sb.from('sessions_surf').delete().eq('id', id);
+      window.location.href = 'calendrier.html';
+    });
+
+    (async function init() {
+      const session = await requireAuth();
+      if (!session) return;
+      initNav('calendrier');
+      await load();
+    })();
+  </script>
+</body>
+</html>
