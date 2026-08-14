@@ -8,10 +8,30 @@
 </head>
 <body>
   <nav id="navbar"></nav>
+
+  <div class="hero">
+    <div class="hero-inner">
+      <img src="logo.png" alt="Logo Titan Surf Club" class="hero-logo" onerror="this.style.display='none';">
+      <div class="hero-text">
+        <h1>TITAN Surf Club</h1>
+        <p>Île de La Réunion — Toute Incapacité Trouve Adaptation Nécessaire</p>
+      </div>
+    </div>
+  </div>
+
   <div class="page">
+    <div class="card" style="margin-bottom:20px;">
+      <h3 style="font-size:.95rem; margin-bottom:12px;">Tableau de bord</h3>
+      <table class="dash-table">
+        <tbody id="dashTable">
+          <tr><td colspan="2" class="empty-msg">Chargement...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class="page-header">
       <div>
-        <h1>Adhérents</h1>
+        <h1 style="font-size:1.3rem;">Adhérents</h1>
         <p class="subtitle" id="countLabel">Chargement...</p>
       </div>
       <div style="display:flex; gap:10px;">
@@ -19,8 +39,6 @@
         <button class="btn btn-secondary" id="addBtn">+ Ajouter un adhérent</button>
       </div>
     </div>
-
-    <div class="stat-grid" id="statGrid"></div>
 
     <div class="search-box">
       <span>🔍</span>
@@ -34,7 +52,7 @@
             <th>Nom</th>
             <th>Contact</th>
             <th>Licence FFS</th>
-            <th>Séances restantes</th>
+            <th>Séances / accès</th>
             <th>Statut</th>
           </tr>
         </thead>
@@ -51,39 +69,61 @@
   <script>
     let adherents = [];
     let statsMap = {};
+    let achatsByAdherent = {};
 
     async function load() {
-      const [{ data: a }, { data: s }] = await Promise.all([
+      const [{ data: a }, { data: s }, { data: achats }] = await Promise.all([
         sb.from('adherents').select('*').order('nom'),
         sb.from('v_adherents_stats').select('*'),
+        sb.from('achats').select('adherent_id, type, statut, date_paiement'),
       ]);
       adherents = a || [];
       statsMap = Object.fromEntries((s || []).map(x => [x.adherent_id, x]));
-      renderStats();
+      achatsByAdherent = {};
+      (achats || []).forEach(ac => {
+        (achatsByAdherent[ac.adherent_id] = achatsByAdherent[ac.adherent_id] || []).push(ac);
+      });
+
+      renderDashboard(achats || []);
       render(adherents);
     }
 
-    function renderStats() {
+    function renderDashboard(allAchats) {
       const actifs = adherents.filter(a => a.actif);
-      const restantesTotal = actifs.reduce((sum, a) => sum + (statsMap[a.id]?.seances_restantes ?? 0), 0);
-      const aRelancer = actifs.filter(a => (statsMap[a.id]?.seances_restantes ?? 0) <= 0).length;
-      document.getElementById('statGrid').innerHTML = `
-        <div class="stat-card"><div class="stat-value">${actifs.length}</div><div class="stat-label">Adhérents actifs</div></div>
-        <div class="stat-card"><div class="stat-value">${restantesTotal}</div><div class="stat-label">Séances restantes (total)</div></div>
-        <div class="stat-card"><div class="stat-value">${aRelancer}</div><div class="stat-label">Solde à 0 ou négatif</div></div>
+
+      let restantesTotal = 0;
+      let aRelancer = 0;
+      actifs.forEach(a => {
+        const expiry = licenceAnnuelleActive(achatsByAdherent[a.id]);
+        if (expiry) return; // illimité, ne compte pas dans "à relancer" ni dans le total de séances
+        const n = statsMap[a.id]?.seances_restantes ?? 0;
+        restantesTotal += n;
+        if (n <= 0) aRelancer++;
+      });
+
+      const enAttente = allAchats.filter(x => x.statut === 'En attente').length;
+
+      document.getElementById('dashTable').innerHTML = `
+        <tr><td>Adhérents actifs</td><td>${actifs.length}</td></tr>
+        <tr><td>Séances restantes (total, hors licence illimitée)</td><td>${restantesTotal}</td></tr>
+        <tr><td>Solde à 0 ou négatif (hors licence illimitée)</td><td>${aRelancer}</td></tr>
+        <tr><td>Paiements en attente (carnets, séances, licences)</td><td>${enAttente}</td></tr>
       `;
-      document.getElementById('countLabel').textContent = `${adherents.length} adhérent(s) enregistré(s)`;
     }
 
     function render(list) {
       const tbody = document.getElementById('tbody');
+      document.getElementById('countLabel').textContent = `${adherents.length} adhérent(s) enregistré(s)`;
       if (list.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="empty-msg">Aucun adhérent trouvé.</td></tr>';
         return;
       }
       tbody.innerHTML = list.map(a => {
         const st = statsMap[a.id];
-        const badge = statutSeances(st?.seances_restantes);
+        const expiry = licenceAnnuelleActive(achatsByAdherent[a.id]);
+        const seancesCell = expiry
+          ? `<span class="badge badge-illimite">Illimité jusqu'au ${fmtDateObj(expiry)}</span>`
+          : `<span class="badge ${statutSeances(st?.seances_restantes).cls}">${statutSeances(st?.seances_restantes).label}</span>`;
         return `
           <tr class="clickable" onclick="location.href='adherent.html?id=${a.id}'">
             <td style="font-weight:700; color:var(--marine);">${a.nom} ${a.prenom}</td>
@@ -92,7 +132,7 @@
               <div class="text-muted" style="font-size:.82rem;">${a.telephone || ''}</div>
             </td>
             <td>${a.licence ? '✅' : '—'}</td>
-            <td><span class="badge ${badge.cls}">${badge.label}</span></td>
+            <td>${seancesCell}</td>
             <td>${a.actif ? '<span class="badge badge-vert">Actif</span>' : '<span class="badge badge-neutral">Inactif</span>'}</td>
           </tr>`;
       }).join('');
