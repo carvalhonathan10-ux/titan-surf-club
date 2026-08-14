@@ -40,20 +40,30 @@ const TYPE_LABEL = {
 };
 const TYPE_DEFAULT_MONTANT = { seance_unique: 20, carnet_10: 120, licence: 280 };
 const TYPE_DEFAULT_SEANCES = { seance_unique: 1, carnet_10: 10, licence: 0 };
+const LICENCE_DUREE_JOURS = 365;
 
-function el(tag, attrs = {}, children = []) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') e.className = v;
-    else if (k === 'html') e.innerHTML = v;
-    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
-    else e.setAttribute(k, v);
-  }
-  (Array.isArray(children) ? children : [children]).forEach(c => {
-    if (c === null || c === undefined) return;
-    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+// La "licence annuelle" (280€) donne un accès illimité aux séances pendant
+// 365 jours à partir de la date de paiement — elle ne décompte jamais de
+// séances. On calcule ici si l'adhérent a une licence encore active, et
+// jusqu'à quand.
+function licenceAnnuelleActive(achatsAdherent) {
+  const licences = (achatsAdherent || []).filter(
+    a => a.type === 'licence' && a.statut === 'Payé' && a.date_paiement
+  );
+  if (licences.length === 0) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let latestExpiry = null;
+  licences.forEach(a => {
+    const start = new Date(a.date_paiement + 'T00:00:00');
+    const expiry = new Date(start);
+    expiry.setDate(expiry.getDate() + LICENCE_DUREE_JOURS);
+    if (expiry >= today && (!latestExpiry || expiry > latestExpiry)) latestExpiry = expiry;
   });
-  return e;
+  return latestExpiry; // Date si active, sinon null
+}
+
+function fmtDateObj(d) {
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function initNav(active) {
@@ -62,7 +72,8 @@ function initNav(active) {
   bar.innerHTML = `
     <div class="nav-inner">
       <a href="index.html" class="nav-brand">
-        <span class="nav-logo">T</span> TITAN SURF CLUB
+        <img src="logo.png" alt="Logo Titan Surf Club" class="nav-logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';">
+        <span class="nav-logo" style="display:none;">T</span> TITAN SURF CLUB
       </a>
       <div class="nav-links">
         <a href="index.html" class="${active === 'accueil' ? 'active' : ''}">Adhérents</a>
