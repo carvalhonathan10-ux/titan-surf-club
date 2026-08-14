@@ -111,7 +111,12 @@
       fillForm(a);
       const badge = statutSeances(s?.seances_restantes);
       document.getElementById('adherentName').textContent = `${a.prenom} ${a.nom}`;
-      document.getElementById('soldeBadge').innerHTML = `<span class="badge ${badge.cls}">${badge.label}</span>`;
+      const licenceExpiry = licenceAnnuelleActive(achats || []);
+      if (licenceExpiry) {
+        document.getElementById('soldeBadge').innerHTML = `<span class="badge badge-illimite">Illimité jusqu'au ${fmtDateObj(licenceExpiry)}</span>`;
+      } else {
+        document.getElementById('soldeBadge').innerHTML = `<span class="badge ${badge.cls}">${badge.label}</span>`;
+      }
       document.getElementById('realiseesLabel').textContent = `${s?.seances_realisees ?? 0} séance(s) réalisée(s) au total`;
 
       const historique = (res || []).filter(r => r.sessions_surf).sort((x, y) => x.sessions_surf.date < y.sessions_surf.date ? 1 : -1);
