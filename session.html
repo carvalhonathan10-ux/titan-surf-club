@@ -26,6 +26,7 @@
         <div class="field"><label>Encadrant(s)</label><input id="f_encadrants" placeholder="Noms des bénévoles"></div>
       </div>
       <button class="btn btn-secondary" id="saveSessionBtn">💾 Enregistrer les infos</button>
+      <span id="saveFeedback" style="margin-left:10px; font-size:.85rem; color:var(--vert); font-weight:700;"></span>
     </div>
 
     <div class="card">
@@ -117,6 +118,7 @@
       if (!val) return;
       const { error } = await sb.from('reservations').insert({ session_id: id, adherent_id: val });
       if (!error) load();
+      else alert('Erreur : ' + error.message);
     });
 
     document.getElementById('saveSessionBtn').addEventListener('click', async () => {
@@ -126,8 +128,17 @@
         lieu: document.getElementById('f_lieu').value,
         encadrants: document.getElementById('f_encadrants').value,
       };
+      const feedback = document.getElementById('saveFeedback');
       const { error } = await sb.from('sessions_surf').update(payload).eq('id', id);
-      if (!error) load();
+      if (error) {
+        feedback.style.color = 'var(--rouge)';
+        feedback.textContent = 'Erreur : ' + error.message;
+      } else {
+        feedback.style.color = 'var(--vert)';
+        feedback.textContent = '✅ Enregistré (' + payload.date + ')';
+        load();
+      }
+      setTimeout(() => { feedback.textContent = ''; }, 4000);
     });
 
     document.getElementById('deleteSessionBtn').addEventListener('click', async () => {
