@@ -40,8 +40,14 @@
     let cursor = new Date();
     cursor.setDate(1);
 
+    // IMPORTANT : ne jamais utiliser toISOString() ici — ça convertit en UTC
+    // et décale la date d'un jour à La Réunion (UTC+4). On formate donc la
+    // date à partir des valeurs LOCALES du navigateur.
     function fmt(d) {
-      return d.toISOString().slice(0, 10);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
     }
     function startOfWeekMon(d) {
       const day = (d.getDay() + 6) % 7;
