@@ -57,22 +57,50 @@
 
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-        <h3 style="font-size:.95rem;">Achats — carnets, séances, licence annuelle</h3>
+        <h3 style="font-size:.95rem;">Achats — carnets, séances, licence annuelle, exceptions</h3>
       </div>
       <p class="text-muted" style="font-size:.8rem; margin-top:-8px; margin-bottom:14px;">
         Un adhérent peut racheter un nouveau carnet/séance/licence annuelle à tout moment, même si son solde de séances est à 0 ou négatif — cela n'empêche jamais de surfer.
+        Le montant et le nombre de séances sont modifiables (utile pour les tarifs "Exception" ou pour corriger un montant).
       </p>
       <div class="row-inline" style="margin-bottom:16px;">
         <div class="field" style="margin-bottom:0;">
           <label>Type</label>
           <select id="newAchatType">
-            <option value="carnet_10">Carnet 10 séances — 120 €</option>
-            <option value="seance_unique">Séance unique — 20 €</option>
-            <option value="licence">Licence annuelle — 280 €</option>
+            <option value="carnet_10">Carnet 10 séances</option>
+            <option value="seance_unique">Séance unique</option>
+            <option value="licence">Licence annuelle (illimité 1 an)</option>
+            <option value="exception">Exception (tarif libre)</option>
           </select>
         </div>
-        <button class="btn btn-primary" id="addAchatBtn">+ Ajouter un achat</button>
+        <div class="field" style="margin-bottom:0; width:110px;">
+          <label>Montant (€)</label>
+          <input type="number" step="0.01" id="newAchatMontant" value="120">
+        </div>
+        <div class="field" style="margin-bottom:0; width:150px;">
+          <label>Séances couvertes</label>
+          <input type="number" step="1" id="newAchatSeances" value="10">
+        </div>
+        <div class="field" style="margin-bottom:0; width:130px;">
+          <label>Passeport (€)</label>
+          <input type="number" step="0.01" id="newAchatPasseport" value="0">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Mode de paiement (reste dû)</label>
+          <select id="newAchatMode">
+            <option value="">—</option>
+            <option>Espèces</option>
+            <option>Chèque</option>
+            <option>Virement</option>
+            <option>Carte bancaire</option>
+            <option>Passeport</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="addAchatBtn">+ Ajouter cet achat</button>
       </div>
+      <p class="text-muted" style="font-size:.78rem; margin-top:-10px; margin-bottom:14px;">
+        Le "Passeport" (dispositif d'aide handicap) permet d'alléger le montant dû : indiquez le montant couvert par le Passeport, le reste à payer se calcule automatiquement et se règle via un autre mode.
+      </p>
       <div id="achatsList"></div>
     </div>
 
@@ -138,24 +166,56 @@
         list.innerHTML = '<p class="empty-msg">Aucun achat enregistré.</p>';
         return;
       }
-      list.innerHTML = achats.map(a => `
-        <div class="list-row">
-          <div>
-            <div style="font-weight:600;">${TYPE_LABEL[a.type]} · ${a.montant} €</div>
-            <div class="text-muted" style="font-size:.8rem;">${a.mode_paiement || 'Mode non précisé'} ${a.date_paiement ? '· ' + fmtDateShort(a.date_paiement) : ''}</div>
+      list.innerHTML = achats.map(a => {
+        const passeport = Number(a.montant_passeport || 0);
+        const reste = Number(a.montant || 0) - passeport;
+        return `
+        <div class="list-row" style="align-items:flex-start; flex-wrap:wrap; gap:8px;">
+          <div style="flex:1; min-width:260px;">
+            <div style="font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              ${TYPE_LABEL[a.type] || a.type}
+              <input type="number" step="0.01" data-id="${a.id}" data-field="montant" class="achatEdit" value="${a.montant}" style="width:80px; padding:3px 6px; border:1px solid var(--border); border-radius:6px;"> €
+              ·
+              <input type="number" step="1" data-id="${a.id}" data-field="nb_seances" class="achatEdit" value="${a.nb_seances}" style="width:60px; padding:3px 6px; border:1px solid var(--border); border-radius:6px;"> séance(s)
+            </div>
+            <div class="text-muted" style="font-size:.8rem; margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+              Passeport :
+              <input type="number" step="0.01" data-id="${a.id}" data-field="montant_passeport" class="achatEdit" value="${passeport}" style="width:70px; padding:3px 6px; border:1px solid var(--border); border-radius:6px;"> €
+              ${passeport > 0 ? `→ reste ${reste.toFixed(2)} € à payer` : ''}
+              ${a.date_paiement ? '· ' + fmtDateShort(a.date_paiement) : ''}
+            </div>
           </div>
-          <div style="display:flex; gap:8px; align-items:center;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <select data-id="${a.id}" class="modeSelect" style="border:1px solid var(--border); border-radius:6px; padding:4px 6px; font-size:.82rem;">
+              <option value="">Mode —</option>
+              ${MODES_PAIEMENT.map(m => `<option value="${m}" ${a.mode_paiement === m ? 'selected' : ''}>${m}</option>`).join('')}
+            </select>
             <select data-id="${a.id}" class="statutSelect ${a.statut === 'Payé' ? 'badge badge-vert' : 'badge badge-ambre'}" style="border:none;">
               <option value="Payé" ${a.statut === 'Payé' ? 'selected' : ''}>Payé</option>
               <option value="En attente" ${a.statut === 'En attente' ? 'selected' : ''}>En attente</option>
             </select>
             <button class="btn btn-ghost btn-sm delAchatBtn" data-id="${a.id}">🗑</button>
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
 
       list.querySelectorAll('.statutSelect').forEach(sel => {
         sel.addEventListener('change', async (e) => {
           await sb.from('achats').update({ statut: e.target.value }).eq('id', e.target.dataset.id);
+          load();
+        });
+      });
+      list.querySelectorAll('.modeSelect').forEach(sel => {
+        sel.addEventListener('change', async (e) => {
+          await sb.from('achats').update({ mode_paiement: e.target.value || null }).eq('id', e.target.dataset.id);
+          load();
+        });
+      });
+      list.querySelectorAll('.achatEdit').forEach(inp => {
+        inp.addEventListener('blur', async (e) => {
+          const field = e.target.dataset.field;
+          const value = parseFloat(e.target.value) || 0;
+          await sb.from('achats').update({ [field]: value }).eq('id', e.target.dataset.id);
           load();
         });
       });
@@ -208,15 +268,28 @@
       else load();
     });
 
+    // Pré-remplit montant / séances quand on change le type d'achat
+    document.getElementById('newAchatType').addEventListener('change', (e) => {
+      const type = e.target.value;
+      document.getElementById('newAchatMontant').value = TYPE_DEFAULT_MONTANT[type];
+      document.getElementById('newAchatSeances').value = TYPE_DEFAULT_SEANCES[type];
+    });
+
     document.getElementById('addAchatBtn').addEventListener('click', async () => {
       const type = document.getElementById('newAchatType').value;
+      const montant = parseFloat(document.getElementById('newAchatMontant').value) || 0;
+      const nb_seances = parseInt(document.getElementById('newAchatSeances').value, 10) || 0;
+      const montant_passeport = parseFloat(document.getElementById('newAchatPasseport').value) || 0;
+      const mode_paiement = document.getElementById('newAchatMode').value || null;
       const { error } = await sb.from('achats').insert({
-        adherent_id: id, type,
-        montant: TYPE_DEFAULT_MONTANT[type],
-        nb_seances: TYPE_DEFAULT_SEANCES[type],
+        adherent_id: id, type, montant, nb_seances, montant_passeport, mode_paiement,
         statut: 'En attente',
       });
-      if (!error) load();
+      if (error) alert('Erreur : ' + error.message);
+      else {
+        document.getElementById('newAchatPasseport').value = 0;
+        load();
+      }
     });
 
     document.getElementById('deleteBtn').addEventListener('click', async () => {
