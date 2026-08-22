@@ -37,9 +37,11 @@ const TYPE_LABEL = {
   seance_unique: 'Séance unique',
   carnet_10: 'Carnet 10 séances',
   licence: 'Licence annuelle (280€)',
+  exception: 'Exception (tarif libre)',
 };
-const TYPE_DEFAULT_MONTANT = { seance_unique: 20, carnet_10: 120, licence: 280 };
-const TYPE_DEFAULT_SEANCES = { seance_unique: 1, carnet_10: 10, licence: 0 };
+const TYPE_DEFAULT_MONTANT = { seance_unique: 20, carnet_10: 120, licence: 280, exception: 0 };
+const TYPE_DEFAULT_SEANCES = { seance_unique: 1, carnet_10: 10, licence: 0, exception: 1 };
+const MODES_PAIEMENT = ['Espèces', 'Chèque', 'Virement', 'Carte bancaire', 'Passeport'];
 const LICENCE_DUREE_JOURS = 365;
 
 // La "licence annuelle" (280€) donne un accès illimité aux séances pendant
